@@ -12,9 +12,9 @@ public class DiscordBotManager : IDisposable
     public DiscordBotManager()
     {
         IConfigurationBuilder configurationBuilder = new ConfigurationBuilder()
-            .AddEnvironmentVariables()
             .AddJsonFile("bot.json", true)
-            .AddJsonFile("bot.custom.json", true);
+            .AddJsonFile("bot.custom.json", true)
+            .AddEnvironmentVariables();
         IConfigurationRoot configuration = configurationBuilder.Build();
 
         var services = new ServiceCollection();
