@@ -74,9 +74,10 @@ public class TelegramBot : IBot
 
         bool isMentioned = IsMentioned(update.Message);
 
-        if (!isMentioned
-            && update.Message.ReplyToMessage?.From?.Id != _me.Id
-            && !_phraseGenerator.MessageContainsTriggers(update.Message.Text ?? ""))
+        if (!isMentioned // is mentioned in message
+            && update.Message.ReplyToMessage?.From?.Id != _me.Id // is reply to own phrase
+            && !_phraseGenerator.MessageContainsTriggers(update.Message.Text ?? "") // triggered
+            && update.Message.Chat.Type != ChatType.Private)
         {
             return;
         }
