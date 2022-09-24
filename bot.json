@@ -1,7 +1,9 @@
 ﻿{
   "Bots": {
     "NeuroTemnov": {
-      "Token": "",
+      "DiscordToken": "",
+      "TelegramToken": "",
+      
       "Triggers": [
         "україна",
         "херсон",

@@ -1,37 +1,27 @@
-﻿using CircularBuffer;
-using Discord;
+﻿using Discord;
 using Discord.WebSocket;
 using Microsoft.Extensions.Logging;
+using NeuroTemnov.Phrases;
 
 namespace NeuroTemnov.Bot;
 
-public class DiscordBot
+public class DiscordBot : IBot
 {
-    private readonly string _name;
     private readonly string _token;
-    private readonly IReadOnlyList<string> _triggers;
-    private readonly IReadOnlyList<string> _replies;
+    private readonly IPhraseGenerator _phraseGenerator;
     private readonly ILogger _logger;
     private readonly DiscordSocketClient _client;
-    private readonly Random _rng;
-    private readonly CircularBuffer<int> _buffer;
 
     public DiscordBot(
-        string name,
         string token,
-        IReadOnlyList<string> triggers,
-        IReadOnlyList<string> replies,
-        int bufferSize,
+        IPhraseGenerator phraseGenerator,
         ILogger logger
     )
 
     {
-        _name = name;
         _token = token;
-        _triggers = triggers;
-        _replies = replies;
+        _phraseGenerator = phraseGenerator;
         _logger = logger;
-        _buffer = new CircularBuffer<int>(Math.Min(bufferSize, _replies.Count / 2));
         _client = new DiscordSocketClient(new DiscordSocketConfig
         {
             LogLevel = LogSeverity.Info,
@@ -40,7 +30,6 @@ public class DiscordBot
         });
         _client.MessageReceived += OnMessageReceived;
         _client.Log += Log;
-        _rng = new Random();
     }
 
     private async Task OnMessageReceived(SocketMessage message)
@@ -68,12 +57,12 @@ public class DiscordBot
                     : messageId
             ); // if this is a reply to bot's message -- just replying to current)
         }
-        else if (_triggers.Any(s => message.Content.Contains(s, StringComparison.InvariantCultureIgnoreCase)))
+        else if (_phraseGenerator.MessageContainsTriggers(message.Content))
         {
             messageReference = new MessageReference(messageId);
         }
 
-        string messageText = RandomMessage();
+        string messageText = _phraseGenerator.GetReply();
 
         if (messageReference is not null)
         {
@@ -93,28 +82,23 @@ public class DiscordBot
 
     private Task Log(LogMessage message)
     {
-        switch (message.Severity)
+        LogLevel logLevel = message.Severity switch
         {
-            case LogSeverity.Critical:
-            case LogSeverity.Error:
-                Console.ForegroundColor = ConsoleColor.Red;
-                break;
-            case LogSeverity.Warning:
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                break;
-            case LogSeverity.Info:
-                Console.ForegroundColor = ConsoleColor.White;
-                break;
-            case LogSeverity.Verbose:
-            case LogSeverity.Debug:
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                break;
-        }
-
-        Console.WriteLine(
-            $"{DateTime.Now,-19} [{message.Severity,8}] [{_name} ] {message.Source}: {message.Message} {message.Exception}");
-        Console.ResetColor();
-
+            LogSeverity.Critical => LogLevel.Critical,
+            LogSeverity.Error => LogLevel.Error,
+            LogSeverity.Warning => LogLevel.Warning,
+            LogSeverity.Info => LogLevel.Information,
+            LogSeverity.Debug => LogLevel.Debug,
+            LogSeverity.Verbose => LogLevel.Trace,
+            _ => LogLevel.Trace
+        };
+        _logger.Log(
+            logLevel,
+            message.Exception,
+            "{Source}: {Message}",
+            message.Source,
+            message.Message
+        );
         return Task.CompletedTask;
     }
 
@@ -124,22 +108,5 @@ public class DiscordBot
         await _client.StartAsync();
         // Wait infinitely so your bot actually stays connected.
         await Task.Delay(Timeout.Infinite, cancellationToken);
-    }
-
-    private string RandomMessage()
-    {
-        int index;
-        while (true)
-        {
-            index = _rng.Next(0, _replies.Count);
-            if (!_buffer.Contains(index))
-            {
-                break;
-            }
-        }
-
-        _logger.LogError("Buffer is {Buffer}", _buffer.ToArray());
-        _buffer.PushBack(index);
-        return _replies[index];
     }
 }
